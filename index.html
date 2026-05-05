@@ -56,7 +56,6 @@
             min-height: 100vh;
         }
 
-        /* হেডার ও কন্ট্রোলস */
         .header-controls { display: flex; align-items: center; gap: 10px; max-width: 900px; margin: 10px auto 20px; }
         .theme-btn { background: var(--btn-color); border: 2px solid white; color: white; padding: 8px 12px; border-radius: 50%; cursor: pointer; font-size: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
         .search-container { flex-grow: 1; }
@@ -72,9 +71,6 @@
         input:checked + .slider { background-color: var(--btn-color); }
         input:checked + .slider:before { transform: translateX(20px); }
 
-        .count-info { text-align: center; font-size: 18px; font-weight: bold; margin-bottom: 15px; }
-
-        /* নতুন লোডার এনিমেশন */
         #loader { 
             position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
             background: var(--bg-gradient); display: flex; flex-direction: column; 
@@ -89,7 +85,8 @@
         .load-text { font-size: 18px; font-weight: bold; text-transform: uppercase; letter-spacing: 2px; }
         .fetch-source { font-size: 12px; margin-top: 10px; color: var(--accent); }
 
-        /* ফ্লিপার স্লাইডার */
+        .count-info { text-align: center; font-size: 18px; font-weight: bold; margin-bottom: 15px; }
+
         #flipper-container { margin-bottom: 25px; transition: 0.3s; }
         .swiper { width: 100%; max-width: 900px; height: 250px; border-radius: 15px; }
         .swiper-slide {
@@ -101,21 +98,17 @@
         }
         .slide-title { background: rgba(0,0,0,0.7); color: white; padding: 10px; text-align: center; font-size: 13px; font-weight: bold; }
 
-        /* গ্রিড ও মুভি কার্ড */
         .movie-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; max-width: 900px; margin: 0 auto; }
         .movie-card { background: var(--card-bg); border-radius: 15px; overflow: hidden; border: 1px solid rgba(255,255,255,0.2); transition: 0.3s; backdrop-filter: blur(var(--glass-blur)); }
-        .movie-card:hover { transform: scale(1.02); }
         .movie-card img { width: 100%; aspect-ratio: 2/3; object-fit: cover; }
         .info { padding: 10px; text-align: center; }
         .title { font-size: 13px; font-weight: bold; height: 32px; overflow: hidden; color: var(--accent); margin-bottom: 8px; }
         .btn-watch { display: block; padding: 10px; background: var(--btn-color); color: white !important; border-radius: 8px; font-weight: bold; font-size: 12px; cursor: pointer; border: none; width: 100%; }
 
-        /* পেজিনেশন */
         .pagination { display: flex; justify-content: center; gap: 15px; margin: 25px 0; }
         .nav-btn { padding: 10px 18px; border-radius: 20px; border: none; background: var(--accent); color: #000; font-weight: bold; cursor: pointer; }
         .nav-btn:disabled { background: #666; cursor: not-allowed; }
 
-        /* থিম পপআপ */
         .modal { display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); }
         .modal-content { background: #222; margin: 20% auto; padding: 20px; border-radius: 15px; width: 80%; max-width: 300px; text-align: center; border: 2px solid var(--accent); color: white; }
         .theme-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
@@ -126,7 +119,7 @@
 
 <div id="loader">
     <div class="load-anim"></div>
-    <div class="load-text">Loading Movies...</div>
+    <div class="load-text">Initializing...</div>
     <div id="fetchSource" class="fetch-source">Checking cache...</div>
 </div>
 
@@ -181,7 +174,6 @@
     let currentPage = 1;
     const itemsPerPage = 50;
 
-    // --- থিম সেটিংস ---
     function openModal() { document.getElementById('themeModal').style.display = 'block'; }
     function closeModal() { document.getElementById('themeModal').style.display = 'none'; }
     function setTheme(t) { document.body.setAttribute('data-theme', t); localStorage.setItem('userTheme', t); closeModal(); }
@@ -192,10 +184,10 @@
         localStorage.setItem('userMode', m);
     }
 
-    // --- প্লেসহোল্ডার অ্যানিমেশন ---
     function startPlaceholderAnimation() {
         const searchBox = document.getElementById('searchBox');
-        const randomMovies = allMovies.sort(() => 0.5 - Math.random()).slice(0, 10).map(m => m.name);
+        if (!allMovies.length) return;
+        const randomMovies = [...allMovies].sort(() => 0.5 - Math.random()).slice(0, 10).map(m => m.name);
         let mIdx = 0, cIdx = 0, isDeleting = false;
 
         function type() {
@@ -211,27 +203,29 @@
                 setTimeout(type, isDeleting ? 50 : 100);
             }
         }
-        if(randomMovies.length > 0) type();
+        type();
     }
 
-    // --- ডেটা ফেচিং (Local Storage ও Server চেক সহ) ---
     async function init() {
-        // লোড সেটিংস
+        // Load UI Settings
         const sT = localStorage.getItem('userTheme') || 'default';
         const sM = localStorage.getItem('userMode') || 'light';
         document.body.setAttribute('data-theme', sT);
         document.body.setAttribute('data-mode', sM);
         document.getElementById('modeToggle').checked = (sM === 'dark');
 
+        const today = new Date().toDateString();
+        const lastFetchDate = localStorage.getItem('lastFetchDate');
         const cacheData = localStorage.getItem('movieCache');
         const sourceLabel = document.getElementById('fetchSource');
 
-        if (cacheData) {
-            sourceLabel.innerText = "Loading from Local Storage (Cache)...";
+        // লজিক: যদি আজকের তারিখ আগের তারিখের সাথে মেলে এবং ক্যাশ ডেটা থাকে
+        if (lastFetchDate === today && cacheData) {
+            sourceLabel.innerText = "Loading from Local Storage (Cached for Today)...";
             allMovies = JSON.parse(cacheData);
-            setTimeout(finishInit, 1500); // অ্যানিমেশন দেখানোর জন্য সামান্য দেরি
+            setTimeout(finishInit, 1200);
         } else {
-            sourceLabel.innerText = "Connecting to Server (Google Sheet)...";
+            sourceLabel.innerText = "Refreshing from Server (Daily Update)...";
             try {
                 const res = await fetch(CSV_URL);
                 const text = await res.text();
@@ -242,9 +236,14 @@
                 }).filter(m => m.name !== "");
                 
                 localStorage.setItem('movieCache', JSON.stringify(allMovies));
+                localStorage.setItem('lastFetchDate', today);
                 finishInit();
             } catch (e) {
-                sourceLabel.innerText = "Error Connecting to Server!";
+                sourceLabel.innerText = "Server Error! Loading from backup cache...";
+                if(cacheData) {
+                    allMovies = JSON.parse(cacheData);
+                    setTimeout(finishInit, 1000);
+                }
             }
         }
     }
